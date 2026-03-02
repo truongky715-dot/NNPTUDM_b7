@@ -1,6 +1,7 @@
 var express = require("express");
 var router = express.Router();
 let { postUserValidator, validateResult } = require('../utils/validatorHandler')
+let userController = require('../controllers/users')
 
 
 
@@ -32,21 +33,15 @@ router.get("/:id", async function (req, res, next) {
   }
 });
 
-router.post("/", postUserValidator,validateResult, async function (req, res, next) {
+router.post("/", postUserValidator, validateResult,
+  async function (req, res, next) {
     try {
-      let newItem = new userModel({
-        username: req.body.username,
-        password: req.body.password,
-        email: req.body.email,
-        fullName: req.body.fullName,
-        avatarUrl: req.body.avatarUrl,
-        status: req.body.status,
-        role: req.body.role,
-        loginCount: req.body.loginCount
-      });
-
-      await newItem.save();
-
+      let newItem = await userController.CreateAnUser(
+        req.body.username,
+        req.body.password,
+        req.body.message,
+        req.body.role
+      )
       // populate cho đẹp
       let saved = await userModel
         .findById(newItem._id)
