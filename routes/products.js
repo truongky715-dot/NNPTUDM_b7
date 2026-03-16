@@ -61,7 +61,7 @@ router.post('/', async function (req, res, next) {
     let newProduct = await newObj.save({session});
     let newInv = new modelInventory({
       product: newProduct._id,
-      stock: -1
+      stock: 100
     })
     newInv = await newInv.save({session})
     await session.commitTransaction();

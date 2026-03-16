@@ -2,11 +2,12 @@ var express = require("express");
 var router = express.Router();
 let { postUserValidator, validateResult } = require('../utils/validatorHandler')
 let userController = require('../controllers/users')
-
+let cartModel = require('../schemas/cart');
 let { checkLogin, checkRole } = require('../utils/authHandler.js')
 
 
 let userModel = require("../schemas/users");
+const { default: mongoose } = require("mongoose");
 //- Strong password
 
 router.get("/", checkLogin,
@@ -35,20 +36,29 @@ router.get("/:id", checkLogin, async function (req, res, next) {
   }
 });
 
-router.post("/",checkLogin,checkRole("ADMIN"), postUserValidator, validateResult,
+router.post("/",  postUserValidator, validateResult,
   async function (req, res, next) {
+    let session = await mongoose.startSession()
+    let transaction = session.startTransaction()
     try {
       let newItem = await userController.CreateAnUser(
         req.body.username,
         req.body.password,
         req.body.email,
-        req.body.role
+        req.body.role,
+        session
       )
-      // populate cho đẹp
-      let saved = await userModel
-        .findById(newItem._id)
-      res.send(saved);
+      let newCart = new cartModel({
+        user: newItem._id
+      })
+      let result = await newCart.save({ session })
+      result = await result.populate('user')
+      session.commitTransaction();
+      session.endSession()
+      res.send(result)
     } catch (err) {
+      session.abortTransaction()
+      session.endSession()
       res.status(400).send({ message: err.message });
     }
   });
