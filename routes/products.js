@@ -2,6 +2,8 @@ var express = require('express');
 let slugify = require('slugify')
 var router = express.Router();
 let modelProduct = require('../schemas/products')
+let modelInventory = require('../schemas/inventories');
+const { default: mongoose } = require('mongoose');
 
 
 /* GET users listing. */
@@ -27,7 +29,7 @@ router.get('/:id', async function (req, res, next) {
   try {
     let id = req.params.id;
     let result = await modelProduct.findById(id)
-    if (result&&(!result.isDeleted)) {
+    if (result && (!result.isDeleted)) {
       res.send(result)
     } else {
       res.status(404).send({
@@ -42,20 +44,36 @@ router.get('/:id', async function (req, res, next) {
 })
 
 router.post('/', async function (req, res, next) {
-  let newObj = new modelProduct({
-    title: req.body.title,
-    slug: slugify(req.body.title, {
-      replacement: '-', remove: undefined,
-      locale: 'vi', trim: true
-    }), price: req.body.price
-    ,
-    description: req.body.description,
-    category: req.body.category,
-    images: req.body.images
-  })
-  await newObj.save();
-  res.send(newObj)
+  let session = await mongoose.startSession()
+  let transaction = session.startTransaction()
+  try {
+    let newObj = new modelProduct({
+      title: req.body.title,
+      slug: slugify(req.body.title, {
+        replacement: '-', remove: undefined,
+        locale: 'vi', trim: true
+      }), price: req.body.price
+      ,
+      description: req.body.description,
+      category: req.body.category,
+      images: req.body.images
+    })
+    let newProduct = await newObj.save({session});
+    let newInv = new modelInventory({
+      product: newProduct._id,
+      stock: -1
+    })
+    newInv = await newInv.save({session})
+    await session.commitTransaction();
+    session.endSession()
+    res.send(newObj)
+  } catch (error) {
+    session.abortTransaction();
+     session.endSession()
+    res.status(404).send(error.message)
+  }
 })
+//replica set
 router.put('/:id', async function (req, res, next) {
   let id = req.params.id;
   try {
@@ -108,8 +126,8 @@ router.delete('/:id', async function (req, res, next) {
     //c2:
     let result = await modelProduct.findByIdAndUpdate(
       id, {
-        isDeleted:true
-      }, {
+      isDeleted: true
+    }, {
       new: true
     }
     )
